@@ -7,15 +7,23 @@ import (
 	"github.com/feildrix/solami/internal/networks"
 )
 
+const asciiLogo = "   _____       __                 _\n" +
+	"  / ___/____  / /___ _____ ___  _(_)\n" +
+	"  \\__ \\/ __ \\/ / __ `/ __ `__ \\/ / /\n" +
+	" ___/ / /_/ / / /_/ / / / / / / / /\n" +
+	"/____/\\____/_/\\__,_/_/ /_/ /_/_/_/"
+
 // View renders the TUI.
 func (m Model) View() string {
 	var body string
 	switch m.screen {
 	case screenOnboarding:
-		body = m.renderMenu("Welcome to Solami", []string{"Create New Wallet", "Import Existing Wallet", "Exit"})
+		body = titleStyle.Render(asciiLogo) + "\n\n" + m.renderMenu("Welcome to Solami", []string{"Create New Wallet", "Import Existing Wallet", "Exit"})
 	case screenCreateShowMnemonic:
 		body = m.renderCreateMnemonic()
-	case screenCreatePassword, screenImportPassword, screenUnlock, screenImportMnemonic, screenSendTo, screenSendAmount, screenSendPassword:
+	case screenUnlock:
+		body = titleStyle.Render(asciiLogo) + "\n\n" + m.renderInput()
+	case screenCreatePassword, screenImportPassword, screenImportMnemonic, screenSendTo, screenSendAmount, screenSendPassword:
 		body = m.renderInput()
 	case screenDashboard:
 		body = m.renderDashboard()
@@ -41,7 +49,11 @@ func (m Model) View() string {
 	default:
 		body = "Unknown screen"
 	}
-	footer := "\n\n" + mutedStyle.Render("esc back  |  ctrl+c quit")
+	footerText := "esc back  |  ctrl+c quit"
+	if m.screen == screenDashboard {
+		footerText = "esc back  |  r refresh  |  ctrl+c quit"
+	}
+	footer := "\n\n" + mutedStyle.Render(footerText)
 	if m.errorText != "" {
 		footer += "\n" + errorStyle.Render(m.errorText)
 	}
@@ -109,7 +121,7 @@ func (m Model) renderDashboard() string {
 	}
 	header := fmt.Sprintf(
 		"%s\n\nActive Network: %s\nAddress: %s\nBalance: %s\nSending: %s\n\n",
-		titleStyle.Render("Solami"),
+		titleStyle.Render(asciiLogo),
 		network.Name,
 		shortAddress(address),
 		defaultText(m.balance, "loading..."),

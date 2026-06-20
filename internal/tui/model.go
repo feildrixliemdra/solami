@@ -56,24 +56,25 @@ type tickMsg time.Time
 
 // Model is the Bubble Tea application model.
 type Model struct {
-	ctx        context.Context
-	paths      storage.Paths
-	cfg        config.Config
-	store      wallet.Store
-	hasWallet  bool
-	plain      *wallet.PlainWallet
-	screen     screen
-	cursor     int
-	input      textinput.Model
-	mnemonic   string
-	errorText  string
-	statusText string
-	balance    string
-	loading    bool
-	sendTo     string
-	sendAmount string
-	sendFee    chains.FeeEstimate
-	updatedAt  time.Time
+	ctx              context.Context
+	paths            storage.Paths
+	cfg              config.Config
+	store            wallet.Store
+	hasWallet        bool
+	plain            *wallet.PlainWallet
+	screen           screen
+	cursor           int
+	input            textinput.Model
+	mnemonic         string
+	errorText        string
+	statusText       string
+	balance          string
+	loading          bool
+	sendTo           string
+	sendAmount       string
+	sendFee          chains.FeeEstimate
+	updatedAt        time.Time
+	lastBalanceFetch time.Time
 }
 
 // NewModel creates a TUI model.
@@ -114,12 +115,18 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tickMsg:
-		if m.shouldAutoLock(time.Time(msg)) {
+		var cmd tea.Cmd
+		now := time.Time(msg)
+		if m.shouldAutoLock(now) {
 			m.lock()
+		} else if m.plain != nil && m.screen == screenDashboard && !m.loading && now.Sub(m.lastBalanceFetch) >= 15*time.Second {
+			m.lastBalanceFetch = now
+			cmd = m.fetchBalanceCmd()
 		}
-		return m, tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
+		return m, tea.Batch(tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) }), cmd)
 	case balanceMsg:
 		m.loading = false
+		m.lastBalanceFetch = time.Now()
 		if msg.err != nil {
 			m.balance = "unavailable"
 			m.errorText = userFacingError(msg.err)
@@ -253,6 +260,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.fetchBalanceCmd()
 		})
 	case screenDashboard:
+		if msg.String() == "r" || msg.String() == "R" {
+			m.loading = true
+			m.errorText = ""
+			m.lastBalanceFetch = time.Now()
+			return m, m.fetchBalanceCmd()
+		}
 		return m.updateMenu(msg, []string{"Send", "Receive", "Switch Network", "Settings", "Lock Wallet", "Exit"}, m.dashboardSelect)
 	case screenSendTo:
 		return m.updateTextInput(msg, func(value string) (Model, tea.Cmd) {
